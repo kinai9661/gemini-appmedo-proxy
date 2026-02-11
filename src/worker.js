@@ -2,64 +2,70 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 靜態 UI：/test
+    // GET /test 返回 UI
     if (url.pathname === '/test') {
-      return env.ASSETS.fetch(request);
+      return new Response(await fetch('https://your-worker.your-subdomain.workers.dev/test.html'), {
+        headers: { 'Content-Type': 'text/html' }
+      });
     }
 
-    // API 代理：/v1beta/models/...:generateContent
-    if (url.pathname.includes(':generateContent')) {
-      const targetUrl = new URL("https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent");
-      targetUrl.searchParams.set('key', env.API_KEY || '');
+    // POST /proxy/generateContent：代理請求
+    if (request.method === 'POST' && url.pathname === '/proxy/generateContent') {
+      const targetUrl = new URL(env.TARGET_URL);
+      targetUrl.searchParams.set('key', env.API_KEY);
 
-      // 乾淨頭部：修復 Spring MediaType 錯誤
-      const headers = new Headers();
+      const apiOutputUrl = targetUrl.href.replace(env.API_KEY, 'HIDDEN_KEY'); // 隱藏 Key
+
+      const body = await request.json();
+      const reqBody = {
+        contents: [{
+          role: 'user',
+          parts: body.contents?.[0]?.parts || [{ text: body.prompt || '' }]
+        }],
+        generationConfig: {
+          response_mime_type: body.response_mime_type || 'image/png',
+          temperature: body.temperature || 0.7
+        }
+      };
+
+      const headers = new Headers(request.headers);
       headers.set('Content-Type', 'application/json');
-      headers.set('Accept', 'application/json');
-      if (request.headers.has('authorization')) {
-        headers.set('Authorization', request.headers.get('authorization'));
-      }
-      if (request.headers.has('user-agent')) {
-        headers.set('User-Agent', request.headers.get('user-agent'));
-      }
-      headers.set('Origin', new URL(request.url).origin);  // CORS
 
-      const newReq = new Request(targetUrl, {
-        method: request.method,
+      const proxyReq = new Request(targetUrl, {
+        method: 'POST',
         headers,
-        body: request.body
+        body: JSON.stringify(reqBody)
       });
 
-      let resp = await fetch(newReq);
-      let data = {};
-      try {
-        data = await resp.json();
-      } catch (e) {
-        return new Response('JSON 解析失敗：' + await resp.text(), { status: 500 });
-      }
+      const resp = await fetch(proxyReq);
+      let data = await resp.json();
 
-      // OpenAI 相容轉換
-      if (data.candidates?.[0]?.content?.parts?.[0]?.inline_data) {
+      // OpenAI 格式轉換（若 ?openai=1）
+      const isOpenAI = url.searchParams.get('openai') === '1';
+      if (isOpenAI && data.candidates?.[0]?.content?.parts?.[0]?.inline_data) {
         data = {
-          created: Date.now() / 1000,
+          created: Date.now(),
           data: [{
             b64_json: data.candidates[0].content.parts[0].inline_data.data,
-            revised_prompt: 'Gemini 3 Pro Image Preview'
+            revised_prompt: data.promptFeedback?.blockReason || 'Gemini generated'
           }]
         };
       }
 
       return new Response(JSON.stringify(data), {
         status: resp.status,
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
+          'Access-Control-Allow-Headers': '*',
+          'Access-Control-Expose-Headers': 'x-final-destination,x-openai-mode',
+          'x-final-destination': apiOutputUrl,  // API 輸出地址
+          'x-openai-mode': isOpenAI ? 'enabled' : 'gemini-native'
         }
       });
     }
 
-    return new Response('使用 /test 生圖或 POST /v1beta/models/gemini-3-pro-image-preview:generateContent', { status: 404 });
+    return new Response('Not Found', { status: 404 });
   }
 };
