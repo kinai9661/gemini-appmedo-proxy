@@ -2,72 +2,103 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>Appmedo Gemini 生圖測試</title>
-  <style>body{font-family:Arial;max-width:800px;margin:0 auto;padding:20px;}#preview{max-width:100%;border:1px solid #ccc;}</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Appmedo Proxy Test</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#0f172a; color:#f1f5f9; max-width:800px; margin:0 auto; padding:20px; }
+    input,textarea,select { width:100%; padding:12px; border:1px solid #334155; border-radius:8px; background:#1e293b; color:#f1f5f9; box-sizing:border-box; }
+    button { background:#3b82f6; color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-size:16px; width:100%; margin:10px 0; }
+    button:disabled { background:#475569; cursor:not-allowed; }
+    #placeholder { min-height:400px; display:flex; align-items:center; justify-content:center; background:#1e293b; border:2px dashed #475569; border-radius:12px; color:#94a3b8; }
+    #log { background:#0f172a; border:1px solid #334155; padding:16px; border-radius:8px; font-family:monospace; font-size:12px; height:300px; overflow:auto; white-space:pre-wrap; }
+    #apiOutput { background:#f0f9ff; border:1px solid #0ea5e9; padding:12px; border-radius:8px; margin:10px 0; color:#0c4a6e; display:none; }
+    #status { padding:8px; border-radius:6px; font-weight:bold; margin:10px 0; }
+    .flex { display:flex; gap:10px; }
+    .flex input { flex:1; }
+  </style>
 </head>
 <body>
-  <h1>🚀 Gemini 3 Pro Image Preview 生圖</h1>
-  <textarea id="prompt" placeholder="描述圖像，如：香港 Sha Tin 夜景，動漫風" rows="3" style="width:100%;"></textarea><br>
-  <label>上傳參考圖（選填）：<input type="file" id="image" accept="image/*"></label><br>
+  <h1>🖼️ Gemini 3 Pro Image Preview Test</h1>
+  <label>Prompt: <input id="prompt" placeholder="描述圖像..." value="可愛的貓咪在香港沙田區散步"></label>
+  <label>Image Upload: <input type="file" id="image" accept="image/*"></label>
+  <label>
+    <input type="checkbox" id="openai"> OpenAI 格式輸出
+  </label>
   <button onclick="generate()">生成圖像</button>
-  <div id="status">就緒</div>
-  <img id="preview" style="display:none;">
-  <a id="download" style="display:none;">下載 PNG</a>
-  <pre id="log"></pre>
+  <div id="status"></div>
+  <div id="apiOutput">
+    <strong>API 輸出地址：</strong><span id="finalUrl"></span>
+  </div>
+  <img id="placeholder" src="">
+  <details><summary>Raw API Log</summary><pre id="log"></pre></details>
 
   <script>
+    const PROXY_URL = '/proxy/generateContent';
+    let status = document.getElementById('status');
+    let placeholder = document.getElementById('placeholder');
+    let log = document.getElementById('log');
+    let apiOutputDiv = document.getElementById('apiOutput');
+    let finalUrlSpan = document.getElementById('finalUrl');
+
     async function generate() {
+      const prompt = document.getElementById('prompt').value;
+      const imageFile = document.getElementById('image').files[0];
+      const openaiMode = document.getElementById('openai').checked;
       const btn = event.target;
       btn.disabled = true;
-      btn.textContent = '生成中...';
-      const status = document.getElementById('status');
-      const preview = document.getElementById('preview');
-      const download = document.getElementById('download');
-      const log = document.getElementById('log');
-      status.textContent = '發送請求...';
+      status.textContent = '⏳ 生成中...';
+      status.style.color = '#f59e0b';
+      log.textContent = '';
 
       try {
-        const prompt = document.getElementById('prompt').value;
-        const file = document.getElementById('image').files[0];
-        const parts = [{text: prompt}];
-        if (file) {
-          const data = await file.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
-          parts.push({inline_data: {mime_type: file.type, data: base64}});
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        if (imageFile) {
+          formData.append('image', imageFile);
+        }
+        if (openaiMode) {
+          formData.append('openai', '1');
         }
 
-        const resp = await fetch('/v1beta/models/gemini-3-pro-image-preview:generateContent', {
+        const response = await fetch(PROXY_URL, {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            contents: [{role: 'user', parts}],
-            generation_config: {response_mime_type: 'image/png'}
-          })
+          body: JSON.stringify({ prompt }),
+          headers: { 'Content-Type': 'application/json' }
         });
+        const data = await response.json();
 
-        const data = await resp.json();
         log.textContent = JSON.stringify(data, null, 2);
 
-        if (data.data?.[0]?.b64_json) {
-          const imgSrc = `data:image/png;base64,${data.data[0].b64_json}`;
-          preview.src = imgSrc;
-          preview.style.display = 'block';
-          download.href = imgSrc;
-          download.download = 'gemini-image.png';
-          download.style.display = 'block';
-          status.textContent = '✅ 生成成功';
-          status.style.color = 'green';
-        } else {
-          status.textContent = '⚠️ 無圖像資料';
-          status.style.color = 'orange';
+        // API 輸出地址
+        const finalUrl = response.headers.get('x-final-destination');
+        if (finalUrl) {
+          finalUrlSpan.textContent = finalUrl;
+          apiOutputDiv.style.display = 'block';
         }
+
+        const openaiMode = response.headers.get('x-openai-mode') === 'enabled';
+        if (openaiMode && data.data?.[0]?.b64_json) {
+          placeholder.src = `data:image/png;base64,${data.data[0].b64_json}`;
+        } else if (data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
+          placeholder.src = `data:image/png;base64,${data.candidates[0].content.parts[0].inline_data.data}`;
+        } else {
+          placeholder.src = '';
+          status.textContent = '⚠️ 無圖片數據';
+          status.style.color = '#f59e0b';
+          placeholder.textContent = 'No Image Data';
+          return;
+        }
+
+        status.textContent = '✅ 生成成功';
+        status.style.color = '#10b981';
+        placeholder.style.display = 'block';
       } catch (e) {
-        status.textContent = `❌ 錯誤：${e.message}`;
-        status.style.color = 'red';
-        log.textContent += `\n錯誤：${e.message}`;
+        status.textContent = '❌ 錯誤';
+        status.style.color = '#ef4444';
+        placeholder.textContent = e.message;
+        log.textContent += `\nERROR: ${e.message}`;
       } finally {
         btn.disabled = false;
-        btn.textContent = '🚀 生成圖像';
       }
     }
   </script>
