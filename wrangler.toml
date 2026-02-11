@@ -1,8 +1,127 @@
-name = "gemini-appmedo-proxy"
-main = "src/worker.js"
-compatibility_date = "2026-02-11"
+# Cloudflare Workers 配置文件
+# 更多信息: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+# Worker 名称（部署后的 URL: https://{name}.{account}.workers.dev）
+name = "api-reverse-engineering"
+
+# Worker 入口文件
+main = "worker.js"
+
+# 兼容日期（影响 Workers Runtime 行为）
+compatibility_date = "2024-01-01"
+
+# 账号 ID（可选，运行 wrangler whoami 查看）
+# account_id = ""
+
+# ==========================================
+# 环境变量配置
+# ==========================================
 
 [vars]
-TARGET_URL = "https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent"
+# API Key 验证（可选）
+# 不设置 = 开发模式（无验证）
+# 设置 = 生产模式（启用验证）
 
-# Secret: wrangler secret put API_KEY
+# 方式 1: 直接设置（不推荐，会暴露在代码中）
+# API_KEY = "sk-your-api-key-here"
+
+# 方式 2: 使用 Secrets（推荐）
+# 运行命令设置:
+#   wrangler secret put API_KEY
+# 查看已设置的 secrets:
+#   wrangler secret list
+# 删除 secret:
+#   wrangler secret delete API_KEY
+
+# 其他可选配置
+# RATE_LIMIT = "100"           # 每分钟请求限制
+# ALLOWED_ORIGINS = "*"        # CORS 允许的域名
+# MAX_IMAGE_SIZE = "10485760"  # 最大图片大小（10MB）
+
+# ==========================================
+# 路由配置（可选）
+# ==========================================
+
+# 自定义域名路由
+# routes = [
+#   { pattern = "api.example.com/*", zone_name = "example.com" }
+# ]
+
+# ==========================================
+# KV 命名空间（可选，用于存储）
+# ==========================================
+
+# 如果需要存储多个 API Key 或用户数据
+# kv_namespaces = [
+#   { binding = "API_KEYS", id = "your-kv-namespace-id" }
+# ]
+
+# ==========================================
+# 环境配置（可选）
+# ==========================================
+
+# 开发环境
+[env.dev]
+name = "api-reverse-engineering-dev"
+# vars = { API_KEY = "" }  # 开发环境不需要验证
+
+# 预发布环境
+[env.staging]
+name = "api-reverse-engineering-staging"
+# 使用: wrangler secret put API_KEY --env staging
+
+# 生产环境
+[env.production]
+name = "api-reverse-engineering-prod"
+# 使用: wrangler secret put API_KEY --env production
+
+# ==========================================
+# 其他配置
+# ==========================================
+
+# Workers 资源限制
+# workers_dev = true          # 是否部署到 workers.dev 子域名
+# route = ""                  # 自定义路由
+# zone_id = ""                # Zone ID（用于自定义域名）
+
+# 日志级别
+# logpush = false             # 是否启用 Logpush
+# tail_consumers = []         # Tail consumers 配置
+
+# 部署配置
+# minify = false              # 是否压缩代码
+# node_compat = false         # Node.js 兼容性模式
+# compatibility_flags = []    # 兼容性标志
+
+# ==========================================
+# 构建配置（如果需要）
+# ==========================================
+
+# [build]
+# command = "npm install && npm run build"
+# watch_dirs = ["src"]
+
+# [build.upload]
+# format = "service-worker"
+
+# ==========================================
+# 使用说明
+# ==========================================
+
+# 1. 本地开发
+#    wrangler dev worker.js
+
+# 2. 部署到开发环境
+#    wrangler deploy worker.js --env dev
+
+# 3. 部署到生产环境
+#    wrangler secret put API_KEY --env production
+#    wrangler deploy worker.js --env production
+
+# 4. 查看日志
+#    wrangler tail
+#    wrangler tail --env production
+
+# 5. 查看部署信息
+#    wrangler deployments list
+#    wrangler deployments view <deployment-id>
