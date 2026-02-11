@@ -1,7 +1,7 @@
 {
   "name": "gemini-appmedo-proxy",
-  "version": "2.3.0",
-  "description": "Cloudflare Worker proxy for Gemini Image API with OpenAI compatibility",
+  "version": "2.4.0",
+  "description": "Cloudflare Worker proxy for Gemini Image API with OpenAI compatibility and Markdown format support",
   "main": "src/worker.js",
   "scripts": {
     "deploy": "wrangler deploy",
@@ -14,7 +14,8 @@
     "gemini",
     "api",
     "proxy",
-    "openai"
+    "openai",
+    "markdown"
   ],
   "author": "kinai9661",
   "license": "MIT"
