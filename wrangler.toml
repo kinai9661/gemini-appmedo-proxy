@@ -5,7 +5,7 @@
 name = "api-reverse-engineering"
 
 # Worker 入口文件
-main = "worker.js"
+main = "./deploy.sh"
 
 # 兼容日期（影响 Workers Runtime 行为）
 compatibility_date = "2024-01-01"
