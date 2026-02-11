@@ -524,9 +524,9 @@
 
     <div class="glass-card">
       <div class="tabs">
-        <button class="tab active" onclick="switchTab(0)">🖼️ 图像生成</button>
-        <button class="tab" onclick="switchTab(1)">📡 API 集成</button>
-        <button class="tab" onclick="switchTab(2)">📖 文档</button>
+        <button class="tab active" data-tab="0">🖼️ 图像生成</button>
+        <button class="tab" data-tab="1">📡 API 集成</button>
+        <button class="tab" data-tab="2">📖 文档</button>
       </div>
 
       <!-- Tab 1: 图像生成 -->
@@ -553,7 +553,7 @@
           <label for="openaiFormat">启用 OpenAI 格式输出</label>
         </div>
 
-        <button class="btn-primary" id="generateBtn" onclick="generateImage()">
+        <button class="btn-primary" id="generateBtn">
           🎨 开始生成
         </button>
 
@@ -575,7 +575,7 @@
         </div>
 
         <div class="accordion" id="logAccordion">
-          <div class="accordion-header" onclick="toggleAccordion('logAccordion')">
+          <div class="accordion-header">
             <span>🔧 Raw API Response</span>
             <span class="accordion-icon">▼</span>
           </div>
@@ -600,7 +600,7 @@
             <div class="endpoint-badge">POST</div>
           </div>
           <div class="endpoint-url" id="endpoint1"></div>
-          <button class="btn-copy" onclick="copyEndpoint('endpoint1')">📋 复制端点</button>
+          <button class="btn-copy" data-target="endpoint1">📋 复制端点</button>
         </div>
 
         <div class="endpoint-card">
@@ -609,11 +609,11 @@
             <div class="endpoint-badge">POST</div>
           </div>
           <div class="endpoint-url" id="endpoint2"></div>
-          <button class="btn-copy" onclick="copyEndpoint('endpoint2')">📋 复制端点</button>
+          <button class="btn-copy" data-target="endpoint2">📋 复制端点</button>
         </div>
 
         <div class="accordion" id="curlAccordion">
-          <div class="accordion-header" onclick="toggleAccordion('curlAccordion')">
+          <div class="accordion-header">
             <span>📋 curl 示例</span>
             <span class="accordion-icon">▼</span>
           </div>
@@ -632,7 +632,7 @@
         <div class="section-title">API 文档</div>
         
         <div class="accordion active" id="docsAccordion1">
-          <div class="accordion-header" onclick="toggleAccordion('docsAccordion1')">
+          <div class="accordion-header">
             <span>📘 快速开始</span>
             <span class="accordion-icon">▼</span>
           </div>
@@ -649,7 +649,7 @@
         </div>
 
         <div class="accordion" id="docsAccordion2">
-          <div class="accordion-header" onclick="toggleAccordion('docsAccordion2')">
+          <div class="accordion-header">
             <span>📗 请求格式</span>
             <span class="accordion-icon">▼</span>
           </div>
@@ -667,7 +667,7 @@
         </div>
 
         <div class="accordion" id="docsAccordion3">
-          <div class="accordion-header" onclick="toggleAccordion('docsAccordion3')">
+          <div class="accordion-header">
             <span>📙 响应格式</span>
             <span class="accordion-icon">▼</span>
           </div>
@@ -705,14 +705,47 @@
   </div>
 
   <script>
-    let currentTab = 0;
+    (function() {
+      'use strict';
+      
+      let currentTab = 0;
 
-    // 页面加载
-    window.addEventListener('DOMContentLoaded', () => {
-      const baseUrl = window.location.origin;
-      document.getElementById('endpoint1').textContent = `${baseUrl}/api/generate`;
-      document.getElementById('endpoint2').textContent = `${baseUrl}/api/v1/images/generations`;
-      document.getElementById('curlExamples').textContent = `# 标准 Gemini 格式
+      // 等待 DOM 完全加载
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('✅ 页面加载完成，开始初始化...');
+        
+        // 初始化端点显示
+        initEndpoints();
+        
+        // 绑定标签切换
+        initTabs();
+        
+        // 绑定生成按钮
+        initGenerateButton();
+        
+        // 绑定复制按钮
+        initCopyButtons();
+        
+        // 绑定手风琴
+        initAccordions();
+        
+        // 绑定快捷键
+        initKeyboardShortcuts();
+        
+        console.log('✅ 初始化完成');
+      });
+
+      // 初始化端点显示
+      function initEndpoints() {
+        const baseUrl = window.location.origin;
+        const endpoint1 = document.getElementById('endpoint1');
+        const endpoint2 = document.getElementById('endpoint2');
+        const curlExamples = document.getElementById('curlExamples');
+        
+        if (endpoint1) endpoint1.textContent = `${baseUrl}/api/generate`;
+        if (endpoint2) endpoint2.textContent = `${baseUrl}/api/v1/images/generations`;
+        if (curlExamples) {
+          curlExamples.textContent = `# 标准 Gemini 格式
 curl -X POST ${baseUrl}/api/generate \\
   -H "Content-Type: application/json" \\
   -d '{"prompt":"可爱的猫咪在香港沙田区散步"}'
@@ -721,34 +754,254 @@ curl -X POST ${baseUrl}/api/generate \\
 curl -X POST ${baseUrl}/api/v1/images/generations \\
   -H "Content-Type: application/json" \\
   -d '{"prompt":"A cute cat walking in Sha Tin, Hong Kong"}'`;
-    });
+        }
+      }
 
-    // 切换标签
-    function switchTab(index) {
-      const tabs = document.querySelectorAll('.tab');
-      const contents = document.querySelectorAll('.tab-content');
-      
-      tabs.forEach((tab, i) => {
-        tab.classList.toggle('active', i === index);
-      });
-      
-      contents.forEach((content, i) => {
-        content.classList.toggle('active', i === index);
-      });
-      
-      currentTab = index;
-    }
+      // 初始化标签切换
+      function initTabs() {
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(function(tab) {
+          tab.addEventListener('click', function() {
+            const tabIndex = parseInt(tab.getAttribute('data-tab'));
+            switchTab(tabIndex);
+          });
+        });
+      }
 
-    // 切换手风琴
-    function toggleAccordion(id) {
-      const accordion = document.getElementById(id);
-      accordion.classList.toggle('active');
-    }
+      // 切换标签
+      function switchTab(index) {
+        const tabs = document.querySelectorAll('.tab');
+        const contents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(function(tab, i) {
+          if (i === index) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
+        
+        contents.forEach(function(content, i) {
+          if (i === index) {
+            content.classList.add('active');
+          } else {
+            content.classList.remove('active');
+          }
+        });
+        
+        currentTab = index;
+        console.log('切换到标签', index);
+      }
 
-    // 生成图像
-    async function generateImage() {
-      const btn = document.getElementById('generateBtn');
-      const status = document.getElementById('status');
-      const apiInfo = document.getElementById('apiInfo');
-      const preview = document.getElementById('imagePreview');
-      const
+      // 初始化生成按钮
+      function initGenerateButton() {
+        const btn = document.getElementById('generateBtn');
+        if (btn) {
+          btn.addEventListener('click', function() {
+            console.log('✅ 生成按钮被点击');
+            generateImage();
+          });
+          console.log('✅ 生成按钮已绑定');
+        } else {
+          console.error('❌ 找不到生成按钮');
+        }
+      }
+
+      // 初始化复制按钮
+      function initCopyButtons() {
+        const copyButtons = document.querySelectorAll('.btn-copy');
+        copyButtons.forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            const targetId = btn.getAttribute('data-target');
+            copyEndpoint(targetId, btn);
+          });
+        });
+        console.log('✅ 复制按钮已绑定:', copyButtons.length, '个');
+      }
+
+      // 初始化手风琴
+      function initAccordions() {
+        const accordions = document.querySelectorAll('.accordion');
+        accordions.forEach(function(accordion) {
+          const header = accordion.querySelector('.accordion-header');
+          if (header) {
+            header.addEventListener('click', function() {
+              accordion.classList.toggle('active');
+            });
+          }
+        });
+        console.log('✅ 手风琴已绑定:', accordions.length, '个');
+      }
+
+      // 初始化快捷键
+      function initKeyboardShortcuts() {
+        document.addEventListener('keydown', function(e) {
+          if (e.ctrlKey && e.key === 'Enter' && currentTab === 0) {
+            console.log('✅ Ctrl+Enter 快捷键触发');
+            generateImage();
+          }
+        });
+        console.log('✅ 快捷键已绑定');
+      }
+
+      // 生成图像
+      async function generateImage() {
+        const btn = document.getElementById('generateBtn');
+        const status = document.getElementById('status');
+        const apiInfo = document.getElementById('apiInfo');
+        const preview = document.getElementById('imagePreview');
+        const log = document.getElementById('log');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ 生成中...';
+        status.className = 'status-alert status-loading show';
+        status.textContent = '⏳ 正在请求 API...';
+        preview.innerHTML = '<span>生成中...</span>';
+        preview.classList.add('empty');
+        apiInfo.classList.remove('show');
+        log.textContent = '等待响应...';
+
+        // 进度提示
+        let progressCount = 0;
+        const progressInterval = setInterval(function() {
+          progressCount++;
+          const dots = '.'.repeat((progressCount % 3) + 1);
+          status.textContent = `⏳ 正在生成图像${dots} (${progressCount}s)`;
+        }, 1000);
+
+        try {
+          const targetUrl = document.getElementById('targetUrl').value.trim();
+          const apiKey = document.getElementById('apiKey').value.trim();
+          const prompt = document.getElementById('prompt').value.trim();
+          const openai = document.getElementById('openaiFormat').checked;
+
+          if (!prompt) throw new Error('请输入图像描述');
+          if (!targetUrl) throw new Error('请输入上游 API 端点');
+
+          console.log('发送请求:', { prompt: prompt.substring(0, 50), openai: openai });
+
+          const response = await fetch('/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              target_url: targetUrl,
+              key: apiKey || undefined,
+              prompt: prompt,
+              openai: openai,
+              response_mime_type: 'image/png'
+            })
+          });
+
+          clearInterval(progressInterval);
+
+          const responseText = await response.text();
+          log.textContent = responseText;
+
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            throw new Error('JSON 解析失败: ' + responseText.substring(0, 300));
+          }
+
+          if (data.error) {
+            const errMsg = typeof data.error === 'string' ? data.error : 
+                           data.error.message || JSON.stringify(data.error);
+            throw new Error(errMsg);
+          }
+
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + (data.message || '请求失败'));
+          }
+
+          const finalUrl = response.headers.get('x-final-destination') || targetUrl;
+          const mode = response.headers.get('x-openai-mode') || 'native';
+          document.getElementById('finalEndpoint').textContent = finalUrl;
+          document.getElementById('formatMode').textContent = 
+            mode === 'enabled' ? '✅ OpenAI' : '🔵 Gemini';
+          apiInfo.classList.add('show');
+
+          let imgB64 = '';
+          if (openai || mode === 'enabled') {
+            imgB64 = data.data && data.data[0] ? data.data[0].b64_json : '';
+          } else {
+            imgB64 = data.candidates && 
+                     data.candidates[0] && 
+                     data.candidates[0].content && 
+                     data.candidates[0].content.parts && 
+                     data.candidates[0].content.parts[0] && 
+                     data.candidates[0].content.parts[0].inline_data ? 
+                     data.candidates[0].content.parts[0].inline_data.data : '';
+          }
+
+          if (imgB64) {
+            const mimeType = data.candidates && 
+                             data.candidates[0] && 
+                             data.candidates[0].content && 
+                             data.candidates[0].content.parts && 
+                             data.candidates[0].content.parts[0] && 
+                             data.candidates[0].content.parts[0].inline_data ? 
+                             data.candidates[0].content.parts[0].inline_data.mimeType : 'image/png';
+            preview.innerHTML = '<img src="data:' + mimeType + ';base64,' + imgB64 + '" alt="Generated Image">';
+            preview.classList.remove('empty');
+            status.className = 'status-alert status-success show';
+            status.textContent = '✅ 生成成功！(耗时 ' + progressCount + 's)';
+          } else {
+            throw new Error('无图像数据\n\n响应预览:\n' + JSON.stringify(data, null, 2).substring(0, 500));
+          }
+
+        } catch (error) {
+          clearInterval(progressInterval);
+          
+          status.className = 'status-alert status-error show';
+          let errorMsg = error instanceof Error ? error.message : 
+                         typeof error === 'string' ? error : 
+                         JSON.stringify(error, null, 2);
+          
+          if (error.name === 'AbortError') {
+            errorMsg = '请求已取消或超时';
+          }
+          
+          status.textContent = '❌ ' + errorMsg;
+          if (log.textContent === '等待响应...') {
+            log.textContent = '错误详情:\n' + errorMsg + '\n\n' + (error.stack || '');
+          }
+          console.error('生成错误:', error);
+        } finally {
+          clearInterval(progressInterval);
+          btn.disabled = false;
+          btn.textContent = '🎨 开始生成';
+        }
+      }
+
+      // 复制端点
+      function copyEndpoint(id, btnElement) {
+        const element = document.getElementById(id);
+        if (!element) {
+          console.error('找不到元素:', id);
+          return;
+        }
+        
+        const text = element.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+          const btn = btnElement;
+          const original = btn.textContent;
+          btn.textContent = '✅ 已复制';
+          btn.style.background = 'rgba(16, 185, 129, 0.2)';
+          btn.style.color = 'var(--success)';
+          btn.style.borderColor = 'var(--success)';
+          setTimeout(function() {
+            btn.textContent = original;
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+          }, 2000);
+        }).catch(function(err) {
+          alert('复制失败: ' + err.message);
+        });
+      }
+
+    })();
+  </script>
+</body>
+</html>
