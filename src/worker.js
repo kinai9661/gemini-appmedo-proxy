@@ -18,25 +18,18 @@ export default {
     if (request.method === 'GET' && url.pathname === '/api/endpoints') {
       const baseUrl = url.origin;
       const endpoints = {
-        version: "1.8",
+        version: "2.0",
+        status: "ok",
         endpoints: [
           {
             path: "/api/generate",
             method: "POST",
-            format: "gemini",
-            description: "标准 Gemini 格式生成"
+            format: "gemini"
           },
           {
             path: "/api/v1/images/generations",
             method: "POST",
-            format: "openai",
-            description: "OpenAI 兼容格式"
-          },
-          {
-            path: "/proxy",
-            method: "POST",
-            format: "custom",
-            description: "自定义上游端点代理"
+            format: "openai"
           }
         ]
       };
@@ -51,187 +44,263 @@ export default {
 
     // POST /api/generate
     if (request.method === 'POST' && url.pathname === '/api/generate') {
-      try {
-        const body = await request.json();
-        const targetUrl = new URL(env.TARGET_URL);
-        targetUrl.searchParams.set('key', env.API_KEY);
-        
-        // 输出地址：不含 key 参数
-        const apiOutputUrl = new URL(env.TARGET_URL).href;
-
-        const reqBody = {
-          contents: [{
-            role: 'user',
-            parts: [{ text: body.prompt || '' }]
-          }],
-          generationConfig: {
-            response_mime_type: body.response_mime_type || 'image/png',
-            temperature: body.temperature || 0.7
-          }
-        };
-
-        const proxyReq = new Request(targetUrl.href, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody)
-        });
-
-        const resp = await fetch(proxyReq);
-        const data = await resp.json();
-
-        return new Response(JSON.stringify(data), {
-          status: resp.status,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Expose-Headers': 'x-final-destination,x-api-format',
-            'x-final-destination': apiOutputUrl,
-            'x-api-format': 'gemini'
-          }
-        });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-      }
+      return handleGenerate(request, env, 'gemini');
     }
 
     // POST /api/v1/images/generations
     if (request.method === 'POST' && url.pathname === '/api/v1/images/generations') {
-      try {
-        const body = await request.json();
-        const targetUrl = new URL(env.TARGET_URL);
-        targetUrl.searchParams.set('key', env.API_KEY);
-        
-        // 输出地址：不含 key 参数
-        const apiOutputUrl = new URL(env.TARGET_URL).href;
-
-        const reqBody = {
-          contents: [{
-            role: 'user',
-            parts: [{ text: body.prompt || '' }]
-          }],
-          generationConfig: {
-            response_mime_type: 'image/png'
-          }
-        };
-
-        const proxyReq = new Request(targetUrl.href, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody)
-        });
-
-        const resp = await fetch(proxyReq);
-        const data = await resp.json();
-
-        // OpenAI 格式转换
-        const openaiData = {
-          created: Math.floor(Date.now() / 1000),
-          data: []
-        };
-
-        if (data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
-          openaiData.data.push({
-            b64_json: data.candidates[0].content.parts[0].inline_data.data,
-            revised_prompt: body.prompt
-          });
-        }
-
-        return new Response(JSON.stringify(openaiData), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Expose-Headers': 'x-final-destination,x-api-format',
-            'x-final-destination': apiOutputUrl,
-            'x-api-format': 'openai'
-          }
-        });
-      } catch (error) {
-        return new Response(JSON.stringify({ 
-          error: { 
-            message: error.message,
-            type: 'api_error'
-          } 
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-      }
+      return handleGenerate(request, env, 'openai');
     }
 
     // POST /proxy
     if (request.method === 'POST' && url.pathname === '/proxy') {
-      try {
-        const body = await request.json();
-        const targetBase = body.target_url || env.TARGET_URL;
-        const apiKey = body.key || env.API_KEY;
-        
-        if (!targetBase || !apiKey) {
-          return new Response(JSON.stringify({ error: 'Missing target_url or key' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-          });
-        }
-
-        const targetUrl = new URL(targetBase);
-        targetUrl.searchParams.set('key', apiKey);
-        
-        // 输出地址：不含 key 参数
-        const apiOutputUrl = new URL(targetBase).href;
-
-        const reqBody = {
-          contents: [{
-            role: 'user',
-            parts: [{ text: body.prompt || '' }]
-          }],
-          generationConfig: {
-            response_mime_type: body.response_mime_type || 'image/png',
-            temperature: body.temperature || 0.7
-          }
-        };
-
-        const proxyReq = new Request(targetUrl.href, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody)
-        });
-
-        const resp = await fetch(proxyReq);
-        let data = await resp.json();
-
-        const isOpenaiFormat = !!body.openai;
-        if (isOpenaiFormat && data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
-          data = {
-            created: Math.floor(Date.now() / 1000),
-            data: [{
-              b64_json: data.candidates[0].content.parts[0].inline_data.data,
-              revised_prompt: data.promptFeedback?.blockReason || 'Generated by Gemini'
-            }]
-          };
-        }
-
-        return new Response(JSON.stringify(data), {
-          status: resp.status,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Expose-Headers': 'x-final-destination,x-openai-mode',
-            'x-final-destination': apiOutputUrl,
-            'x-openai-mode': isOpenaiFormat ? 'enabled' : 'native'
-          }
-        });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-      }
+      return handleProxy(request, env);
     }
 
     // 静态资源
     return await env.ASSETS.fetch(request);
   }
 };
+
+// 统一生成处理
+async function handleGenerate(request, env, format) {
+  try {
+    // 检查环境变量
+    if (!env.API_KEY) {
+      return jsonError('API_KEY not configured', 500);
+    }
+    if (!env.TARGET_URL) {
+      return jsonError('TARGET_URL not configured', 500);
+    }
+
+    const body = await request.json().catch(() => ({}));
+    
+    if (!body.prompt) {
+      return jsonError('Missing required field: prompt', 400);
+    }
+
+    const targetUrl = new URL(env.TARGET_URL);
+    targetUrl.searchParams.set('key', env.API_KEY);
+    const apiOutputUrl = new URL(env.TARGET_URL).href;
+
+    const reqBody = {
+      contents: [{
+        role: 'user',
+        parts: [{ text: body.prompt }]
+      }],
+      generationConfig: {
+        response_mime_type: body.response_mime_type || 'image/png',
+        temperature: body.temperature || 0.7
+      }
+    };
+
+    console.log('Request to upstream:', {
+      url: apiOutputUrl,
+      prompt: body.prompt
+    });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const resp = await fetch(targetUrl.href, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Cloudflare-Worker/2.0'
+        },
+        body: JSON.stringify(reqBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('Upstream response status:', resp.status);
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Upstream error:', errorText);
+        return jsonError(`Upstream API error: ${resp.status}`, resp.status, { detail: errorText });
+      }
+
+      let data = await resp.json();
+      
+      // 详细日志
+      console.log('Upstream response structure:', {
+        hasCandidates: !!data.candidates,
+        candidatesLength: data.candidates?.length,
+        firstCandidate: data.candidates?.[0] ? 'exists' : 'missing',
+        hasContent: !!data.candidates?.[0]?.content,
+        hasParts: !!data.candidates?.[0]?.content?.parts,
+        partsLength: data.candidates?.[0]?.content?.parts?.length,
+        hasInlineData: !!data.candidates?.[0]?.content?.parts?.[0]?.inline_data,
+        hasDataField: !!data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data,
+        status: data.status,
+        msg: data.msg
+      });
+
+      // 检查图像数据
+      const imgData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
+      
+      if (!imgData) {
+        // 返回完整原始响应用于调试
+        console.error('No image data found. Full response:', JSON.stringify(data));
+        return jsonError('No image data in upstream response', 500, { 
+          upstream_response: data,
+          hint: 'Check if upstream API returned error or unexpected format'
+        });
+      }
+
+      // OpenAI 格式转换
+      if (format === 'openai') {
+        data = {
+          created: Math.floor(Date.now() / 1000),
+          data: [{
+            b64_json: imgData,
+            revised_prompt: body.prompt
+          }]
+        };
+      }
+
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'x-final-destination,x-api-format',
+          'x-final-destination': apiOutputUrl,
+          'x-api-format': format
+        }
+      });
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        return jsonError('Request timeout (25s)', 504);
+      }
+      throw fetchError;
+    }
+
+  } catch (error) {
+    console.error('handleGenerate error:', error.message, error.stack);
+    return jsonError(error.message || 'Internal server error', 500);
+  }
+}
+
+// 代理处理
+async function handleProxy(request, env) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    
+    const targetBase = body.target_url || env.TARGET_URL;
+    const apiKey = body.key || env.API_KEY;
+    
+    if (!targetBase) {
+      return jsonError('Missing target_url', 400);
+    }
+    if (!apiKey) {
+      return jsonError('Missing API key', 400);
+    }
+    if (!body.prompt) {
+      return jsonError('Missing prompt', 400);
+    }
+
+    const targetUrl = new URL(targetBase);
+    targetUrl.searchParams.set('key', apiKey);
+    const apiOutputUrl = new URL(targetBase).href;
+
+    const reqBody = {
+      contents: [{
+        role: 'user',
+        parts: [{ text: body.prompt }]
+      }],
+      generationConfig: {
+        response_mime_type: body.response_mime_type || 'image/png',
+        temperature: body.temperature || 0.7
+      }
+    };
+
+    console.log('Proxy request to:', apiOutputUrl);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const resp = await fetch(targetUrl.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Proxy upstream error:', errorText);
+        return jsonError(`Upstream error: ${resp.status}`, resp.status, { detail: errorText });
+      }
+
+      let data = await resp.json();
+
+      console.log('Proxy response structure:', {
+        hasCandidates: !!data.candidates,
+        hasImageData: !!data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data
+      });
+
+      const isOpenaiFormat = !!body.openai;
+      if (isOpenaiFormat) {
+        const imgData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
+        if (imgData) {
+          data = {
+            created: Math.floor(Date.now() / 1000),
+            data: [{
+              b64_json: imgData,
+              revised_prompt: body.prompt
+            }]
+          };
+        }
+      }
+
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'x-final-destination,x-openai-mode',
+          'x-final-destination': apiOutputUrl,
+          'x-openai-mode': isOpenaiFormat ? 'enabled' : 'native'
+        }
+      });
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        return jsonError('Request timeout', 504);
+      }
+      throw fetchError;
+    }
+
+  } catch (error) {
+    console.error('handleProxy error:', error.message, error.stack);
+    return jsonError(error.message || 'Internal error', 500);
+  }
+}
+
+// 统一错误响应
+function jsonError(message, status = 500, extra = {}) {
+  return new Response(JSON.stringify({ 
+    error: {
+      message: message,
+      status: status,
+      timestamp: new Date().toISOString(),
+      ...extra
+    }
+  }), {
+    status: status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    }
+  });
+}
