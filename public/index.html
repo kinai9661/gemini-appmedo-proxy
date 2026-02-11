@@ -519,7 +519,7 @@
   <div class="container">
     <div class="header">
       <h1>🎨 Gemini Image Proxy</h1>
-      <p>强大的 AI 图像生成 API 网关（无超时限制）</p>
+      <p>强大的 AI 图像生成 API 网关（v2.4）</p>
     </div>
 
     <div class="glass-card">
@@ -643,6 +643,7 @@
                 <li style="padding: 8px 0;">✅ 标准 Gemini 格式 - 返回完整 Gemini API 响应</li>
                 <li style="padding: 8px 0;">✅ OpenAI 兼容格式 - 兼容 OpenAI images.generations 接口</li>
                 <li style="padding: 8px 0;">⏳ 无超时限制 - 等待上游 API 完成</li>
+                <li style="padding: 8px 0;">🎯 Markdown 图像支持 - 自动解析多种格式</li>
               </ul>
             </div>
           </div>
@@ -674,7 +675,7 @@
           <div class="accordion-content">
             <div class="accordion-body">
               <div class="code-block">
-                <pre>// Gemini 格式
+                <pre>// Gemini 格式（inline_data）
 {
   "candidates": [{
     "content": {
@@ -683,6 +684,17 @@
           "data": "base64_image_string",
           "mimeType": "image/png"
         }
+      }]
+    }
+  }]
+}
+
+// Gemini 格式（Markdown）
+{
+  "candidates": [{
+    "content": {
+      "parts": [{
+        "text": "![image](data:image/jpeg;base64,...)"
       }]
     }
   }]
@@ -712,30 +724,18 @@
 
       // 等待 DOM 完全加载
       document.addEventListener('DOMContentLoaded', function() {
-        console.log('✅ 页面加载完成，开始初始化...');
+        console.log('✅ 页面加载完成 v2.4');
         
-        // 初始化端点显示
         initEndpoints();
-        
-        // 绑定标签切换
         initTabs();
-        
-        // 绑定生成按钮
         initGenerateButton();
-        
-        // 绑定复制按钮
         initCopyButtons();
-        
-        // 绑定手风琴
         initAccordions();
-        
-        // 绑定快捷键
         initKeyboardShortcuts();
         
         console.log('✅ 初始化完成');
       });
 
-      // 初始化端点显示
       function initEndpoints() {
         const baseUrl = window.location.origin;
         const endpoint1 = document.getElementById('endpoint1');
@@ -757,7 +757,6 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
         }
       }
 
-      // 初始化标签切换
       function initTabs() {
         const tabs = document.querySelectorAll('.tab');
         tabs.forEach(function(tab) {
@@ -768,7 +767,6 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
         });
       }
 
-      // 切换标签
       function switchTab(index) {
         const tabs = document.querySelectorAll('.tab');
         const contents = document.querySelectorAll('.tab-content');
@@ -790,10 +788,8 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
         });
         
         currentTab = index;
-        console.log('切换到标签', index);
       }
 
-      // 初始化生成按钮
       function initGenerateButton() {
         const btn = document.getElementById('generateBtn');
         if (btn) {
@@ -802,12 +798,9 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
             generateImage();
           });
           console.log('✅ 生成按钮已绑定');
-        } else {
-          console.error('❌ 找不到生成按钮');
         }
       }
 
-      // 初始化复制按钮
       function initCopyButtons() {
         const copyButtons = document.querySelectorAll('.btn-copy');
         copyButtons.forEach(function(btn) {
@@ -816,10 +809,8 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
             copyEndpoint(targetId, btn);
           });
         });
-        console.log('✅ 复制按钮已绑定:', copyButtons.length, '个');
       }
 
-      // 初始化手风琴
       function initAccordions() {
         const accordions = document.querySelectorAll('.accordion');
         accordions.forEach(function(accordion) {
@@ -830,18 +821,44 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
             });
           }
         });
-        console.log('✅ 手风琴已绑定:', accordions.length, '个');
       }
 
-      // 初始化快捷键
       function initKeyboardShortcuts() {
         document.addEventListener('keydown', function(e) {
           if (e.ctrlKey && e.key === 'Enter' && currentTab === 0) {
-            console.log('✅ Ctrl+Enter 快捷键触发');
             generateImage();
           }
         });
-        console.log('✅ 快捷键已绑定');
+      }
+
+      // 提取图像数据（支持多种格式）
+      function extractImageData(data) {
+        let imgB64 = null;
+        let mimeType = 'image/png';
+        
+        const candidate = data.candidates && data.candidates[0];
+        if (!candidate) return { imgB64: null, mimeType: mimeType };
+        
+        const part = candidate.content && candidate.content.parts && candidate.content.parts[0];
+        if (!part) return { imgB64: null, mimeType: mimeType };
+        
+        // 方法 1: inline_data 格式
+        if (part.inline_data && part.inline_data.data) {
+          imgB64 = part.inline_data.data;
+          mimeType = part.inline_data.mimeType || 'image/png';
+          console.log('✅ 从 inline_data 提取图像');
+        }
+        // 方法 2: Markdown 格式 ![image](data:image/jpeg;base64,...)
+        else if (part.text) {
+          const match = part.text.match(/!\[.*?\]\(data:(image\/[^;]+);base64,([^)]+)\)/);
+          if (match) {
+            mimeType = match[1];
+            imgB64 = match[2];
+            console.log('✅ 从 Markdown 提取图像:', mimeType);
+          }
+        }
+        
+        return { imgB64: imgB64, mimeType: mimeType };
       }
 
       // 生成图像
@@ -861,7 +878,6 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
         apiInfo.classList.remove('show');
         log.textContent = '等待响应...';
 
-        // 进度提示
         let progressCount = 0;
         const progressInterval = setInterval(function() {
           progressCount++;
@@ -921,27 +937,21 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
             mode === 'enabled' ? '✅ OpenAI' : '🔵 Gemini';
           apiInfo.classList.add('show');
 
+          // 提取图像数据
           let imgB64 = '';
+          let mimeType = 'image/png';
+          
           if (openai || mode === 'enabled') {
+            // OpenAI 格式
             imgB64 = data.data && data.data[0] ? data.data[0].b64_json : '';
           } else {
-            imgB64 = data.candidates && 
-                     data.candidates[0] && 
-                     data.candidates[0].content && 
-                     data.candidates[0].content.parts && 
-                     data.candidates[0].content.parts[0] && 
-                     data.candidates[0].content.parts[0].inline_data ? 
-                     data.candidates[0].content.parts[0].inline_data.data : '';
+            // Gemini 格式（支持多种格式）
+            const extracted = extractImageData(data);
+            imgB64 = extracted.imgB64;
+            mimeType = extracted.mimeType;
           }
 
           if (imgB64) {
-            const mimeType = data.candidates && 
-                             data.candidates[0] && 
-                             data.candidates[0].content && 
-                             data.candidates[0].content.parts && 
-                             data.candidates[0].content.parts[0] && 
-                             data.candidates[0].content.parts[0].inline_data ? 
-                             data.candidates[0].content.parts[0].inline_data.mimeType : 'image/png';
             preview.innerHTML = '<img src="data:' + mimeType + ';base64,' + imgB64 + '" alt="Generated Image">';
             preview.classList.remove('empty');
             status.className = 'status-alert status-success show';
@@ -958,10 +968,6 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
                          typeof error === 'string' ? error : 
                          JSON.stringify(error, null, 2);
           
-          if (error.name === 'AbortError') {
-            errorMsg = '请求已取消或超时';
-          }
-          
           status.textContent = '❌ ' + errorMsg;
           if (log.textContent === '等待响应...') {
             log.textContent = '错误详情:\n' + errorMsg + '\n\n' + (error.stack || '');
@@ -974,13 +980,9 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
         }
       }
 
-      // 复制端点
       function copyEndpoint(id, btnElement) {
         const element = document.getElementById(id);
-        if (!element) {
-          console.error('找不到元素:', id);
-          return;
-        }
+        if (!element) return;
         
         const text = element.textContent;
         navigator.clipboard.writeText(text).then(function() {
