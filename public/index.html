@@ -6,43 +6,68 @@
   <title>Gemini Image Proxy</title>
   <style>
     :root{--bg:#0f172a;--card:#1e293b;--primary:#3b82f6;--success:#10b981;--warn:#f59e0b;--error:#ef4444;--text:#f1f5f9;--border:#334155;}
-    *{box-sizing:border-box;margin:0;padding:0;}body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;font-size:16px;line-height:1.5;}
-    .container{max-width:800px;width:100%;background:var(--card);border-radius:16px;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,.5);}.header{text-align:center;margin-bottom:24px;}.header h1{font-size:28px;margin-bottom:8px;color:var(--primary);}.header p{color:#94a3b8;}
-    .input-group{margin-bottom:16px;}.input-group label{display:block;margin-bottom:8px;font-weight:500;}.input-group input{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text);font-size:16px;transition:border-color .2s;}
-    .input-group input:focus{outline:none;border-color:var(--primary);}.checkbox-group{display:flex;align-items:center;gap:8px;margin:16px 0;cursor:pointer;}.checkbox-group input{width:auto;}
-    .btn{width:100%;padding:16px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:18px;font-weight:600;cursor:pointer;transition:background .2s;margin:16px 0;}.btn:hover{background:#2563eb;}.btn:disabled{background:#475569;cursor:not-allowed;}
-    #status{padding:12px;border-radius:10px;font-weight:600;text-align:center;margin:16px 0;font-size:16px;}.status-success{color:var(--success);background:rgba(16,185,129,.1);border:1px solid var(--success);}.status-loading{color:var(--primary);background:rgba(59,130,246,.1);border:1px solid var(--primary);}.status-warn{color:var(--warn);background:rgba(245,158,11,.1);border:1px solid var(--warn);}.status-error{color:var(--error);background:rgba(239,68,68,.1);border:1px solid var(--error);}
-    #imageOut{max-width:100%;height:400px;border-radius:12px;background:var(--bg);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:#94a3b8;overflow:hidden;object-fit:contain;}.api-info{background:rgba(59,130,246,.1);border:1px solid var(--primary);border-radius:12px;padding:16px;margin:16px 0;}.api-info h3{margin-bottom:8px;color:var(--primary);}.api-info pre{background:var(--bg);padding:12px;border-radius:8px;font-size:14px;overflow:auto;max-height:200px;}
-    details{margin-top:16px;}summary{cursor:pointer;padding:12px;background:var(--bg);border-radius:8px;font-weight:500;}pre{background:var(--bg);border:1px solid var(--border);padding:16px;border-radius:8px;font-size:12px;height:250px;overflow:auto;white-space:pre-wrap;}
-    @media (max-width:600px){.container{padding:16px;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;}
+    .container{max-width:800px;width:100%;background:var(--card);border-radius:16px;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,.5);}
+    .header{text-align:center;margin-bottom:24px;}.header h1{font-size:28px;margin-bottom:8px;color:var(--primary);}.header p{color:#94a3b8;font-size:14px;}
+    .input-group{margin-bottom:16px;}.input-group label{display:block;margin-bottom:8px;font-weight:500;font-size:14px;}
+    .input-group input,.input-group textarea{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:15px;}
+    .input-group input:focus,.input-group textarea:focus{outline:none;border-color:var(--primary);}
+    .checkbox-group{display:flex;align-items:center;gap:8px;margin:12px 0;cursor:pointer;}.checkbox-group input{width:auto;cursor:pointer;}
+    .btn{width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;margin:12px 0;}
+    .btn:hover{background:#2563eb;}.btn:disabled{background:#475569;cursor:not-allowed;}
+    #status{padding:12px;border-radius:8px;text-align:center;margin:12px 0;font-weight:500;}
+    .status-success{color:var(--success);background:rgba(16,185,129,.1);border:1px solid var(--success);}
+    .status-loading{color:var(--primary);background:rgba(59,130,246,.1);border:1px solid var(--primary);}
+    .status-warn{color:var(--warn);background:rgba(245,158,11,.1);border:1px solid var(--warn);}
+    .status-error{color:var(--error);background:rgba(239,68,68,.1);border:1px solid var(--error);}
+    #imageOut{max-width:100%;height:400px;border-radius:12px;background:var(--bg);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:#94a3b8;object-fit:contain;}
+    .api-info{background:rgba(59,130,246,.1);border:1px solid var(--primary);border-radius:10px;padding:14px;margin:12px 0;}
+    .api-info h3{margin-bottom:8px;color:var(--primary);font-size:16px;}.api-info div{font-size:13px;margin:4px 0;word-break:break-all;}
+    details{margin-top:16px;border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg);}
+    summary{cursor:pointer;font-weight:500;padding:8px;}
+    pre{background:var(--card);border:1px solid var(--border);padding:12px;border-radius:6px;font-size:12px;max-height:250px;overflow:auto;white-space:pre-wrap;margin-top:8px;}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>🖼️ Gemini Image Proxy</h1>
-      <p>輸入 API 端點生成圖像</p>
+      <p>輸入上游 API 地址生成圖像</p>
     </div>
+    
     <div class="input-group">
-      <label for="apiEndpoint">API 端點地址</label>
-      <input type="url" id="apiEndpoint" placeholder="https://your-worker.workers.dev/proxy/generateContent" value="https://kinaai.eu.cc/v1/proxy/generateContent">
+      <label for="targetUrl">上游 API 端點</label>
+      <input type="url" id="targetUrl" placeholder="https://api-integrations.appmedo.com/..." value="https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent">
     </div>
+    
+    <div class="input-group">
+      <label for="apiKey">API Key（選填，優先用環境變數）</label>
+      <input type="password" id="apiKey" placeholder="留空使用 Worker 環境變數">
+    </div>
+    
     <div class="input-group">
       <label for="prompt">圖像描述</label>
       <textarea id="prompt" rows="3" placeholder="可愛的貓咪在香港沙田區散步">可愛的貓咪在香港沙田區散步</textarea>
     </div>
+    
     <div class="checkbox-group">
       <input type="checkbox" id="openaiFormat">
       <label for="openaiFormat">OpenAI 格式輸出</label>
     </div>
-    <button id="generateBtn" onclick="generateImage()">生成圖像</button>
+    
+    <button id="generateBtn" onclick="generateImage()">🎨 生成圖像</button>
+    
     <div id="status"></div>
+    
     <div id="apiInfo" class="api-info" style="display:none;">
       <h3>📡 API 輸出資訊</h3>
-      <div>端點: <span id="finalEndpoint"></span></div>
-      <div>OpenAI 模式: <span id="formatMode"></span></div>
+      <div><strong>最終端點:</strong> <span id="finalEndpoint"></span></div>
+      <div><strong>OpenAI 模式:</strong> <span id="formatMode"></span></div>
     </div>
-    <img id="imageOut" alt="生成圖像">
+    
+    <img id="imageOut" alt="等待生成">
+    
     <details>
       <summary>🔧 Raw API Log</summary>
       <pre id="log"></pre>
@@ -50,7 +75,8 @@
   </div>
 
   <script>
-    const apiEndpointInput = document.getElementById('apiEndpoint');
+    const targetUrlInput = document.getElementById('targetUrl');
+    const apiKeyInput = document.getElementById('apiKey');
     const promptInput = document.getElementById('prompt');
     const openaiFormatCb = document.getElementById('openaiFormat');
     const generateBtn = document.getElementById('generateBtn');
@@ -63,52 +89,62 @@
 
     async function generateImage() {
       generateBtn.disabled = true;
-      generateBtn.textContent = '生成中...';
-      statusEl.textContent = '⏳ 請求 API...';
+      generateBtn.textContent = '⏳ 生成中...';
+      statusEl.textContent = '⏳ 請求中...';
       statusEl.className = 'status-loading';
       imageOut.src = '';
       imageOut.alt = '生成中...';
-      imageOut.style.backgroundImage = '';
       apiInfoEl.style.display = 'none';
       logEl.textContent = '';
 
       try {
-        const apiUrl = apiEndpointInput.value.trim();
-        if (!apiUrl) throw new Error('請輸入 API 端點');
+        const prompt = promptInput.value.trim();
+        if (!prompt) throw new Error('請輸入圖像描述');
 
+        const targetUrl = targetUrlInput.value.trim();
+        if (!targetUrl) throw new Error('請輸入上游 API 端點');
+
+        // 請求本域 /proxy（Worker 代理）
         const body = {
-          prompt: promptInput.value.trim(),
+          target_url: targetUrl,
+          key: apiKeyInput.value.trim() || undefined,
+          prompt: prompt,
           openai: openaiFormatCb.checked,
           response_mime_type: 'image/png'
         };
 
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
 
         const data = await response.json();
         logEl.textContent = JSON.stringify(data, null, 2);
 
         // API 資訊
-        const finalUrl = response.headers.get('x-final-destination') || apiUrl;
-        const mode = response.headers.get('x-openai-mode') || (openaiFormatCb.checked ? 'enabled' : 'native');
+        const finalUrl = response.headers.get('x-final-destination') || targetUrl;
+        const mode = response.headers.get('x-openai-mode') || 'native';
         finalEndpointSpan.textContent = finalUrl;
-        formatModeSpan.textContent = mode === 'enabled' ? '✅ 啟用' : '❌ 原生';
+        formatModeSpan.textContent = mode === 'enabled' ? '✅ 啟用' : '❌ 原生 Gemini';
         apiInfoEl.style.display = 'block';
 
-        // 圖像
+        // 解析圖像
         let imgB64 = '';
         if (mode === 'enabled' && data.data?.[0]?.b64_json) {
           imgB64 = data.data[0].b64_json;
         } else if (data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
           imgB64 = data.candidates[0].content.parts[0].inline_data.data;
         }
+
         if (imgB64) {
           imageOut.src = `data:image/png;base64,${imgB64}`;
+          imageOut.alt = '生成的圖像';
           statusEl.textContent = '✅ 生成成功';
           statusEl.className = 'status-success';
         } else {
@@ -119,17 +155,13 @@
       } catch (error) {
         statusEl.textContent = `❌ ${error.message}`;
         statusEl.className = 'status-error';
-        logEl.textContent += `\n錯誤: ${error.message}`;
+        logEl.textContent = `錯誤: ${error.message}`;
+        imageOut.alt = '生成失敗';
       } finally {
         generateBtn.disabled = false;
-        generateBtn.textContent = '生成圖像';
+        generateBtn.textContent = '🎨 生成圖像';
       }
     }
-
-    // Enter 快捷
-    document.addEventListener('keypress', e => {
-      if (e.key === 'Enter' && !generateBtn.disabled) generateImage();
-    });
   </script>
 </body>
 </html>
