@@ -1,0 +1,10 @@
+name = "gemini-appmedo-proxy"
+main = "src/worker.js"
+compatibility_date = "2026-02-11"
+compatibility_flags = ["nodejs_compat_v2"]
+
+[assets]
+directory = "./public"
+
+[vars]
+TARGET_URL = "https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent"
