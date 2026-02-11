@@ -19,8 +19,7 @@ export default {
       if (url.pathname === '/health') {
         return new Response(JSON.stringify({ 
           status: 'ok',
-          version: '2.3',
-          timeout: 'unlimited',
+          version: '2.4',
           timestamp: new Date().toISOString(),
           env_check: {
             has_api_key: !!env.API_KEY,
@@ -35,7 +34,7 @@ export default {
       if (request.method === 'GET' && url.pathname === '/api/endpoints') {
         const baseUrl = url.origin;
         return new Response(JSON.stringify({ 
-          version: "2.3",
+          version: "2.4",
           timeout: "unlimited",
           endpoints: [
             {
@@ -56,17 +55,7 @@ export default {
               format: "custom",
               url: `${baseUrl}/proxy`
             }
-          ],
-          examples: {
-            gemini: {
-              url: `${baseUrl}/api/generate`,
-              body: { prompt: "可爱的猫咪" }
-            },
-            openai: {
-              url: `${baseUrl}/api/v1/images/generations`,
-              body: { prompt: "A cute cat" }
-            }
-          }
+          ]
         }, null, 2), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
@@ -104,6 +93,36 @@ export default {
   }
 };
 
+// 提取图像数据（支持多种格式）
+function extractImageData(data) {
+  let imgB64 = null;
+  let mimeType = 'image/png';
+  
+  const candidate = data.candidates?.[0];
+  if (!candidate) return { imgB64: null, mimeType };
+  
+  const part = candidate.content?.parts?.[0];
+  if (!part) return { imgB64: null, mimeType };
+  
+  // 方法 1: inline_data 格式（标准格式）
+  if (part.inline_data?.data) {
+    imgB64 = part.inline_data.data;
+    mimeType = part.inline_data.mimeType || 'image/png';
+    console.log('✅ Extracted from inline_data');
+  }
+  // 方法 2: Markdown 格式 ![image](data:image/jpeg;base64,...)
+  else if (part.text) {
+    const match = part.text.match(/!\[.*?\]\(data:(image\/[^;]+);base64,([^)]+)\)/);
+    if (match) {
+      mimeType = match[1];
+      imgB64 = match[2];
+      console.log('✅ Extracted from Markdown format:', { mimeType, dataLength: imgB64.length });
+    }
+  }
+  
+  return { imgB64, mimeType };
+}
+
 // 无超时限制的生成处理
 async function handleGenerate(request, env, format) {
   try {
@@ -133,7 +152,7 @@ async function handleGenerate(request, env, format) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker/2.3-Unlimited'
+        'User-Agent': 'Cloudflare-Worker/2.4'
       },
       body: JSON.stringify({
         contents: [{
@@ -161,18 +180,18 @@ async function handleGenerate(request, env, format) {
 
     // OpenAI 格式转换
     if (format === 'openai') {
-      const imgData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
-      if (!imgData) {
+      const { imgB64, mimeType } = extractImageData(data);
+      
+      if (!imgB64) {
         console.error('No image data found in response');
-        return jsonError('No image data in upstream response', 500, { 
-          raw_response: data 
-        });
+        return jsonError('No image data in response', 500, { raw_response: data });
       }
+      
       data = {
         created: Math.floor(Date.now() / 1000),
         data: [{ 
-          b64_json: imgData, 
-          revised_prompt: body.prompt 
+          b64_json: imgB64,
+          revised_prompt: body.prompt
         }]
       };
     }
@@ -202,15 +221,9 @@ async function handleProxy(request, env) {
     const targetBase = body.target_url || env.TARGET_URL;
     const apiKey = body.key || env.API_KEY;
 
-    if (!targetBase) {
-      return jsonError('Missing target_url', 400);
-    }
-    if (!apiKey) {
-      return jsonError('Missing API key', 400);
-    }
-    if (!body.prompt) {
-      return jsonError('Missing prompt', 400);
-    }
+    if (!targetBase) return jsonError('Missing target_url', 400);
+    if (!apiKey) return jsonError('Missing API key', 400);
+    if (!body.prompt) return jsonError('Missing prompt', 400);
 
     const targetUrl = new URL(targetBase);
     targetUrl.searchParams.set('key', apiKey);
@@ -226,7 +239,7 @@ async function handleProxy(request, env) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker-Proxy/2.3'
+        'User-Agent': 'Cloudflare-Worker-Proxy/2.4'
       },
       body: JSON.stringify({
         contents: [{ 
@@ -254,12 +267,12 @@ async function handleProxy(request, env) {
 
     // OpenAI 格式转换（可选）
     if (body.openai) {
-      const imgData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
-      if (imgData) {
+      const { imgB64, mimeType } = extractImageData(data);
+      if (imgB64) {
         data = {
           created: Math.floor(Date.now() / 1000),
           data: [{
-            b64_json: imgData,
+            b64_json: imgB64,
             revised_prompt: body.prompt
           }]
         };
