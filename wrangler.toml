@@ -1,17 +1,16 @@
 name = "gemini-appmedo-proxy"
+main = "src/worker.js"
 compatibility_date = "2026-02-11"
 compatibility_flags = ["nodejs_compat_v2"]
 
-main = "src/worker.js"
-
-# Secrets 設 wrangler secret put API_KEY
 [vars]
 TARGET_URL = "https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent"
+
+# Secret 通过命令行设置: wrangler secret put API_KEY
 
 [assets]
 directory = "./public"
 
 [[assets.rules]]
 type = "Text"
-globs = ["**/*.html", "**/*.js", "**/*.css"]
-fallthrough = true
+globs = ["**/*"]
