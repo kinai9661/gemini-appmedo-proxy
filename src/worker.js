@@ -14,9 +14,7 @@ export default {
       });
     }
 
-    // ==================== API 路由（优先处理）====================
-
-    // GET /api/endpoints - 端点列表
+    // GET /api/endpoints
     if (request.method === 'GET' && url.pathname === '/api/endpoints') {
       const baseUrl = url.origin;
       const endpoints = {
@@ -26,38 +24,20 @@ export default {
             path: "/api/generate",
             method: "POST",
             format: "gemini",
-            description: "标准 Gemini 格式生成",
-            example: {
-              prompt: "可爱的猫咪",
-              response_mime_type: "image/png"
-            }
+            description: "标准 Gemini 格式生成"
           },
           {
             path: "/api/v1/images/generations",
             method: "POST",
             format: "openai",
-            description: "OpenAI 兼容格式",
-            example: {
-              prompt: "A cute cat",
-              model: "gemini-3-pro-image-preview"
-            }
+            description: "OpenAI 兼容格式"
           },
           {
             path: "/proxy",
             method: "POST",
             format: "custom",
-            description: "自定义上游端点代理",
-            example: {
-              target_url: "https://api.example.com/generate",
-              key: "your-api-key",
-              prompt: "可爱的猫咪",
-              openai: false
-            }
+            description: "自定义上游端点代理"
           }
-        ],
-        curl_examples: [
-          `curl -X POST ${baseUrl}/api/generate -H "Content-Type: application/json" -d '{"prompt":"可爱的猫咪"}'`,
-          `curl -X POST ${baseUrl}/api/v1/images/generations -H "Content-Type: application/json" -d '{"prompt":"A cute cat"}'`
         ]
       };
       
@@ -69,13 +49,15 @@ export default {
       });
     }
 
-    // POST /api/generate - 标准 Gemini 格式
+    // POST /api/generate
     if (request.method === 'POST' && url.pathname === '/api/generate') {
       try {
         const body = await request.json();
         const targetUrl = new URL(env.TARGET_URL);
         targetUrl.searchParams.set('key', env.API_KEY);
-        const apiOutputUrl = targetUrl.href.replace(env.API_KEY, 'HIDDEN_KEY');
+        
+        // 输出地址：不含 key 参数
+        const apiOutputUrl = new URL(env.TARGET_URL).href;
 
         const reqBody = {
           contents: [{
@@ -115,12 +97,15 @@ export default {
       }
     }
 
-    // POST /api/v1/images/generations - OpenAI 格式
+    // POST /api/v1/images/generations
     if (request.method === 'POST' && url.pathname === '/api/v1/images/generations') {
       try {
         const body = await request.json();
         const targetUrl = new URL(env.TARGET_URL);
         targetUrl.searchParams.set('key', env.API_KEY);
+        
+        // 输出地址：不含 key 参数
+        const apiOutputUrl = new URL(env.TARGET_URL).href;
 
         const reqBody = {
           contents: [{
@@ -159,7 +144,8 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Expose-Headers': 'x-api-format',
+            'Access-Control-Expose-Headers': 'x-final-destination,x-api-format',
+            'x-final-destination': apiOutputUrl,
             'x-api-format': 'openai'
           }
         });
@@ -176,7 +162,7 @@ export default {
       }
     }
 
-    // POST /proxy - 动态代理
+    // POST /proxy
     if (request.method === 'POST' && url.pathname === '/proxy') {
       try {
         const body = await request.json();
@@ -192,7 +178,9 @@ export default {
 
         const targetUrl = new URL(targetBase);
         targetUrl.searchParams.set('key', apiKey);
-        const apiOutputUrl = targetUrl.href.replace(apiKey, 'HIDDEN_KEY');
+        
+        // 输出地址：不含 key 参数
+        const apiOutputUrl = new URL(targetBase).href;
 
         const reqBody = {
           contents: [{
@@ -214,7 +202,6 @@ export default {
         const resp = await fetch(proxyReq);
         let data = await resp.json();
 
-        // OpenAI 格式转换（可选）
         const isOpenaiFormat = !!body.openai;
         if (isOpenaiFormat && data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
           data = {
@@ -244,7 +231,7 @@ export default {
       }
     }
 
-    // ==================== 静态资源（最后处理）====================
+    // 静态资源
     return await env.ASSETS.fetch(request);
   }
 };
