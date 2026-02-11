@@ -8,3 +8,8 @@ directory = "./public"
 
 [vars]
 TARGET_URL = "https://api-integrations.appmedo.com/app-7r29gu4xs001/api-Xa6JZ58oPMEa/v1beta/models/gemini-3-pro-image-preview:generateContent"
+
+[[assets.rules]]
+type = "Text"
+globs = ["**/*"]
+fallthrough = true
