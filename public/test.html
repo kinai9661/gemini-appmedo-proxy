@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Appmedo Gemini 生圖測試</title>
+  <style>body{font-family:Arial;max-width:800px;margin:0 auto;padding:20px;}#preview{max-width:100%;border:1px solid #ccc;}</style>
+</head>
+<body>
+  <h1>🚀 Gemini 3 Pro Image Preview 生圖</h1>
+  <textarea id="prompt" placeholder="描述圖像，如：香港 Sha Tin 夜景，動漫風" rows="3" style="width:100%;"></textarea><br>
+  <label>上傳參考圖（選填）：<input type="file" id="image" accept="image/*"></label><br>
+  <button onclick="generate()">生成圖像</button>
+  <div id="status">就緒</div>
+  <img id="preview" style="display:none;">
+  <a id="download" style="display:none;">下載 PNG</a>
+  <pre id="log"></pre>
+
+  <script>
+    async function generate() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      const status = document.getElementById('status');
+      const preview = document.getElementById('preview');
+      const download = document.getElementById('download');
+      const log = document.getElementById('log');
+      status.textContent = '發送請求...';
+
+      try {
+        const prompt = document.getElementById('prompt').value;
+        const file = document.getElementById('image').files[0];
+        const parts = [{text: prompt}];
+        if (file) {
+          const data = await file.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
+          parts.push({inline_data: {mime_type: file.type, data: base64}});
+        }
+
+        const resp = await fetch('/v1beta/models/gemini-3-pro-image-preview:generateContent', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            contents: [{role: 'user', parts}],
+            generation_config: {response_mime_type: 'image/png'}
+          })
+        });
+
+        const data = await resp.json();
+        log.textContent = JSON.stringify(data, null, 2);
+
+        if (data.data?.[0]?.b64_json) {
+          const imgSrc = `data:image/png;base64,${data.data[0].b64_json}`;
+          preview.src = imgSrc;
+          preview.style.display = 'block';
+          download.href = imgSrc;
+          download.download = 'gemini-image.png';
+          download.style.display = 'block';
+          status.textContent = '✅ 生成成功';
+          status.style.color = 'green';
+        } else {
+          status.textContent = '⚠️ 無圖像資料';
+          status.style.color = 'orange';
+        }
+      } catch (e) {
+        status.textContent = `❌ 錯誤：${e.message}`;
+        status.style.color = 'red';
+        log.textContent += `\n錯誤：${e.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 生成圖像';
+      }
+    }
+  </script>
+</body>
+</html>
