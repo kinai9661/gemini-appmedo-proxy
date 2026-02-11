@@ -519,7 +519,7 @@
   <div class="container">
     <div class="header">
       <h1>🎨 Gemini Image Proxy</h1>
-      <p>强大的 AI 图像生成 API 网关</p>
+      <p>强大的 AI 图像生成 API 网关（无超时限制）</p>
     </div>
 
     <div class="glass-card">
@@ -642,6 +642,7 @@
               <ul style="list-style: none; padding: 0;">
                 <li style="padding: 8px 0;">✅ 标准 Gemini 格式 - 返回完整 Gemini API 响应</li>
                 <li style="padding: 8px 0;">✅ OpenAI 兼容格式 - 兼容 OpenAI images.generations 接口</li>
+                <li style="padding: 8px 0;">⏳ 无超时限制 - 等待上游 API 完成</li>
               </ul>
             </div>
           </div>
@@ -673,15 +674,26 @@
           <div class="accordion-content">
             <div class="accordion-body">
               <div class="code-block">
-                <pre>{
+                <pre>// Gemini 格式
+{
   "candidates": [{
     "content": {
       "parts": [{
         "inline_data": {
-          "data": "base64_image_string"
+          "data": "base64_image_string",
+          "mimeType": "image/png"
         }
       }]
     }
+  }]
+}
+
+// OpenAI 格式
+{
+  "created": 1739264400,
+  "data": [{
+    "b64_json": "base64_image_string",
+    "revised_prompt": "prompt text"
   }]
 }</pre>
               </div>
@@ -733,132 +745,10 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
       accordion.classList.toggle('active');
     }
 
-    // 生成图像（修复版）
+    // 生成图像
     async function generateImage() {
       const btn = document.getElementById('generateBtn');
       const status = document.getElementById('status');
       const apiInfo = document.getElementById('apiInfo');
       const preview = document.getElementById('imagePreview');
-      const log = document.getElementById('log');
-
-      btn.disabled = true;
-      btn.textContent = '⏳ 生成中...';
-      status.className = 'status-alert status-loading show';
-      status.textContent = '⏳ 正在请求 API...';
-      preview.innerHTML = '<span>生成中...</span>';
-      preview.classList.add('empty');
-      apiInfo.classList.remove('show');
-      log.textContent = '等待响应...';
-
-      try {
-        const targetUrl = document.getElementById('targetUrl').value.trim();
-        const apiKey = document.getElementById('apiKey').value.trim();
-        const prompt = document.getElementById('prompt').value.trim();
-        const openai = document.getElementById('openaiFormat').checked;
-
-        if (!prompt) throw new Error('请输入图像描述');
-        if (!targetUrl) throw new Error('请输入上游 API 端点');
-
-        const response = await fetch('/proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            target_url: targetUrl,
-            key: apiKey || undefined,
-            prompt,
-            openai,
-            response_mime_type: 'image/png'
-          })
-        });
-
-        const responseText = await response.text();
-        log.textContent = responseText;
-
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError) {
-          throw new Error(`JSON 解析失败: ${responseText.substring(0, 300)}`);
-        }
-
-        // 检查错误
-        if (data.error) {
-          const errMsg = typeof data.error === 'string' ? data.error : 
-                         data.error.message || JSON.stringify(data.error);
-          throw new Error(errMsg);
-        }
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${data.message || '请求失败'}`);
-        }
-
-        // 显示 API 信息
-        const finalUrl = response.headers.get('x-final-destination') || targetUrl;
-        const mode = response.headers.get('x-openai-mode') || 'native';
-        document.getElementById('finalEndpoint').textContent = finalUrl;
-        document.getElementById('formatMode').textContent = 
-          mode === 'enabled' ? '✅ OpenAI' : '🔵 Gemini';
-        apiInfo.classList.add('show');
-
-        // 解析图像
-        let imgB64 = '';
-        if (openai || mode === 'enabled') {
-          imgB64 = data.data?.[0]?.b64_json;
-        } else {
-          imgB64 = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
-        }
-
-        if (imgB64) {
-          const mimeType = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.mimeType || 'image/png';
-          preview.innerHTML = `<img src="data:${mimeType};base64,${imgB64}" alt="Generated Image">`;
-          preview.classList.remove('empty');
-          status.className = 'status-alert status-success show';
-          status.textContent = '✅ 生成成功！';
-        } else {
-          throw new Error(`无图像数据\n\n响应预览:\n${JSON.stringify(data, null, 2).substring(0, 500)}`);
-        }
-
-      } catch (error) {
-        status.className = 'status-alert status-error show';
-        const errorMsg = error instanceof Error ? error.message : 
-                         typeof error === 'string' ? error : 
-                         JSON.stringify(error, null, 2);
-        status.textContent = `❌ ${errorMsg}`;
-        if (log.textContent === '等待响应...') {
-          log.textContent = `错误详情:\n${errorMsg}\n\n${error.stack || ''}`;
-        }
-        console.error('Generation error:', error);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '🎨 开始生成';
-      }
-    }
-
-    // 复制端点
-    function copyEndpoint(id) {
-      const text = document.getElementById(id).textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = event.target;
-        const original = btn.textContent;
-        btn.textContent = '✅ 已复制';
-        btn.style.background = 'rgba(16, 185, 129, 0.2)';
-        btn.style.color = 'var(--success)';
-        btn.style.borderColor = 'var(--success)';
-        setTimeout(() => {
-          btn.textContent = original;
-          btn.style.background = '';
-          btn.style.color = '';
-          btn.style.borderColor = '';
-        }, 2000);
-      });
-    }
-
-    // Ctrl+Enter 快捷键
-    document.addEventListener('keydown', e => {
-      if (e.ctrlKey && e.key === 'Enter' && currentTab === 0) {
-        generateImage();
-      }
-    });
-  </script>
-</body>
-</html>
+      const
