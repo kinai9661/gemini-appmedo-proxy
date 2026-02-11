@@ -283,6 +283,7 @@
       gap: 12px;
       font-weight: 600;
       animation: slideDown 0.3s ease-out;
+      word-break: break-word;
     }
     
     @keyframes slideDown {
@@ -447,6 +448,8 @@
       font-size: 13px;
       line-height: 1.6;
       margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     
     .accordion {
@@ -486,7 +489,7 @@
     }
     
     .accordion.active .accordion-content {
-      max-height: 1000px;
+      max-height: 2000px;
     }
     
     .accordion-body {
@@ -730,7 +733,7 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
       accordion.classList.toggle('active');
     }
 
-    // 生成图像
+    // 生成图像（修复版）
     async function generateImage() {
       const btn = document.getElementById('generateBtn');
       const status = document.getElementById('status');
@@ -745,6 +748,7 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
       preview.innerHTML = '<span>生成中...</span>';
       preview.classList.add('empty');
       apiInfo.classList.remove('show');
+      log.textContent = '等待响应...';
 
       try {
         const targetUrl = document.getElementById('targetUrl').value.trim();
@@ -767,42 +771,63 @@ curl -X POST ${baseUrl}/api/v1/images/generations \\
           })
         });
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || `HTTP ${response.status}`);
+        const responseText = await response.text();
+        log.textContent = responseText;
+
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error(`JSON 解析失败: ${responseText.substring(0, 300)}`);
         }
 
-        const data = await response.json();
-        log.textContent = JSON.stringify(data, null, 2);
+        // 检查错误
+        if (data.error) {
+          const errMsg = typeof data.error === 'string' ? data.error : 
+                         data.error.message || JSON.stringify(data.error);
+          throw new Error(errMsg);
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${data.message || '请求失败'}`);
+        }
 
         // 显示 API 信息
-        document.getElementById('finalEndpoint').textContent = 
-          response.headers.get('x-final-destination') || targetUrl;
+        const finalUrl = response.headers.get('x-final-destination') || targetUrl;
+        const mode = response.headers.get('x-openai-mode') || 'native';
+        document.getElementById('finalEndpoint').textContent = finalUrl;
         document.getElementById('formatMode').textContent = 
-          response.headers.get('x-openai-mode') === 'enabled' ? '✅ OpenAI' : '🔵 Gemini';
+          mode === 'enabled' ? '✅ OpenAI' : '🔵 Gemini';
         apiInfo.classList.add('show');
 
-        // 显示图像
+        // 解析图像
         let imgB64 = '';
-        const mode = response.headers.get('x-openai-mode');
-        if (mode === 'enabled' && data.data?.[0]?.b64_json) {
-          imgB64 = data.data[0].b64_json;
-        } else if (data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
-          imgB64 = data.candidates[0].content.parts[0].inline_data.data;
+        if (openai || mode === 'enabled') {
+          imgB64 = data.data?.[0]?.b64_json;
+        } else {
+          imgB64 = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data;
         }
 
         if (imgB64) {
-          preview.innerHTML = `<img src="data:image/png;base64,${imgB64}" alt="Generated Image">`;
+          const mimeType = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.mimeType || 'image/png';
+          preview.innerHTML = `<img src="data:${mimeType};base64,${imgB64}" alt="Generated Image">`;
           preview.classList.remove('empty');
           status.className = 'status-alert status-success show';
           status.textContent = '✅ 生成成功！';
         } else {
-          throw new Error('无图像数据');
+          throw new Error(`无图像数据\n\n响应预览:\n${JSON.stringify(data, null, 2).substring(0, 500)}`);
         }
+
       } catch (error) {
         status.className = 'status-alert status-error show';
-        status.textContent = `❌ ${error.message}`;
-        log.textContent = `错误: ${error.message}`;
+        const errorMsg = error instanceof Error ? error.message : 
+                         typeof error === 'string' ? error : 
+                         JSON.stringify(error, null, 2);
+        status.textContent = `❌ ${errorMsg}`;
+        if (log.textContent === '等待响应...') {
+          log.textContent = `错误详情:\n${errorMsg}\n\n${error.stack || ''}`;
+        }
+        console.error('Generation error:', error);
       } finally {
         btn.disabled = false;
         btn.textContent = '🎨 开始生成';
