@@ -19,11 +19,12 @@ export default {
       if (url.pathname === '/health') {
         return new Response(JSON.stringify({ 
           status: 'ok',
-          version: '2.4',
+          version: '2.4.1',
           timestamp: new Date().toISOString(),
           env_check: {
             has_api_key: !!env.API_KEY,
-            has_target_url: !!env.TARGET_URL
+            has_target_url: !!env.TARGET_URL,
+            has_assets: !!env.ASSETS
           }
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -34,7 +35,7 @@ export default {
       if (request.method === 'GET' && url.pathname === '/api/endpoints') {
         const baseUrl = url.origin;
         return new Response(JSON.stringify({ 
-          version: "2.4",
+          version: "2.4.1",
           timeout: "unlimited",
           endpoints: [
             {
@@ -76,8 +77,31 @@ export default {
         return handleProxy(request, env);
       }
 
-      // 静态资源
-      return await env.ASSETS.fetch(request);
+      // 根路径返回简单说明
+      if (url.pathname === '/') {
+        return new Response(getHomePage(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+      }
+
+      // 静态资源（如果配置了 ASSETS）
+      if (env.ASSETS) {
+        try {
+          return await env.ASSETS.fetch(request);
+        } catch (assetsError) {
+          console.error('Assets fetch error:', assetsError);
+          return new Response('Asset not found', { 
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        }
+      }
+
+      // 默认 404
+      return new Response('Not Found', { 
+        status: 404,
+        headers: { 'Content-Type': 'text/plain' }
+      });
 
     } catch (error) {
       console.error('Worker error:', error);
@@ -92,6 +116,93 @@ export default {
     }
   }
 };
+
+// 简单的首页 HTML
+function getHomePage() {
+  return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Image Proxy API</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    h1 { color: #6366f1; }
+    .endpoint {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+      border-left: 4px solid #6366f1;
+    }
+    code {
+      background: #334155;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    a { color: #8b5cf6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>🎨 Gemini Image Proxy API</h1>
+  <p>Version: 2.4.1</p>
+  
+  <h2>Available Endpoints:</h2>
+  
+  <div class="endpoint">
+    <strong>POST /api/generate</strong><br>
+    Standard Gemini format
+  </div>
+  
+  <div class="endpoint">
+    <strong>POST /api/v1/images/generations</strong><br>
+    OpenAI compatible format
+  </div>
+  
+  <div class="endpoint">
+    <strong>POST /proxy</strong><br>
+    Custom proxy endpoint
+  </div>
+  
+  <div class="endpoint">
+    <strong>GET /health</strong><br>
+    Health check
+  </div>
+  
+  <div class="endpoint">
+    <strong>GET /api/endpoints</strong><br>
+    API documentation
+  </div>
+  
+  <h2>Example Usage:</h2>
+  <pre><code>curl -X POST ${getBaseUrl()}/api/v1/images/generations \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt":"A cute cat"}'</code></pre>
+  
+  <p>
+    <a href="/health">Health Check</a> | 
+    <a href="/api/endpoints">API Endpoints</a>
+  </p>
+</body>
+</html>`;
+  
+  function getBaseUrl() {
+    try {
+      return new URL(self.location.href).origin;
+    } catch {
+      return 'https://your-worker.workers.dev';
+    }
+  }
+}
 
 // 提取图像数据（支持多种格式）
 function extractImageData(data) {
@@ -152,7 +263,7 @@ async function handleGenerate(request, env, format) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker/2.4'
+        'User-Agent': 'Cloudflare-Worker/2.4.1'
       },
       body: JSON.stringify({
         contents: [{
@@ -239,7 +350,7 @@ async function handleProxy(request, env) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker-Proxy/2.4'
+        'User-Agent': 'Cloudflare-Worker-Proxy/2.4.1'
       },
       body: JSON.stringify({
         contents: [{ 
