@@ -24,3 +24,9 @@ export default {
     if (request.method === 'POST' && url.pathname === '/proxy') {
       let body;
       try
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // CORS preflight
+    if (request.method
