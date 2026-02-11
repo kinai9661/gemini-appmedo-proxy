@@ -14,11 +14,13 @@ export default {
       });
     }
 
+    // ==================== API 路由（优先处理）====================
+
     // GET /api/endpoints - 端点列表
     if (request.method === 'GET' && url.pathname === '/api/endpoints') {
       const baseUrl = url.origin;
       const endpoints = {
-        version: "1.7",
+        version: "1.8",
         endpoints: [
           {
             path: "/api/generate",
@@ -37,15 +39,20 @@ export default {
             description: "OpenAI 兼容格式",
             example: {
               prompt: "A cute cat",
-              model: "gemini-3-pro-image-preview",
-              response_format: "b64_json"
+              model: "gemini-3-pro-image-preview"
             }
           },
           {
             path: "/proxy",
             method: "POST",
             format: "custom",
-            description: "自定义上游端点代理"
+            description: "自定义上游端点代理",
+            example: {
+              target_url: "https://api.example.com/generate",
+              key: "your-api-key",
+              prompt: "可爱的猫咪",
+              openai: false
+            }
           }
         ],
         curl_examples: [
@@ -95,7 +102,7 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Expose-Headers': 'x-final-destination',
+            'Access-Control-Expose-Headers': 'x-final-destination,x-api-format',
             'x-final-destination': apiOutputUrl,
             'x-api-format': 'gemini'
           }
@@ -152,18 +159,24 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
+            'Access-Control-Expose-Headers': 'x-api-format',
             'x-api-format': 'openai'
           }
         });
       } catch (error) {
-        return new Response(JSON.stringify({ error: { message: error.message } }), {
+        return new Response(JSON.stringify({ 
+          error: { 
+            message: error.message,
+            type: 'api_error'
+          } 
+        }), {
           status: 500,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
     }
 
-    // POST /proxy - 原有动态代理
+    // POST /proxy - 动态代理
     if (request.method === 'POST' && url.pathname === '/proxy') {
       try {
         const body = await request.json();
@@ -201,6 +214,7 @@ export default {
         const resp = await fetch(proxyReq);
         let data = await resp.json();
 
+        // OpenAI 格式转换（可选）
         const isOpenaiFormat = !!body.openai;
         if (isOpenaiFormat && data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
           data = {
@@ -230,11 +244,7 @@ export default {
       }
     }
 
-    // 静态资源
-    try {
-      return await env.ASSETS.fetch(request);
-    } catch (e) {
-      return new Response('Not Found', { status: 404 });
-    }
+    // ==================== 静态资源（最后处理）====================
+    return await env.ASSETS.fetch(request);
   }
 };
