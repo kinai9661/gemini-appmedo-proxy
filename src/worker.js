@@ -7,7 +7,6 @@ export default {
     console.log('=== Request ===');
     console.log('Method:', method);
     console.log('Path:', path);
-    console.log('Origin:', url.origin);
 
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -16,7 +15,6 @@ export default {
       'Access-Control-Max-Age': '86400'
     };
 
-    // CORS Preflight
     if (method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
@@ -27,9 +25,7 @@ export default {
         return new Response(JSON.stringify({ 
           status: 'ok',
           version: '2.5.1',
-          timestamp: new Date().toISOString(),
-          method: method,
-          path: path
+          timestamp: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -41,8 +37,6 @@ export default {
           version: "2.5.1",
           endpoints: [
             { path: "/", method: "GET" },
-            { path: "/health", method: "GET" },
-            { path: "/api/endpoints", method: "GET" },
             { path: "/api/generate", method: "POST" },
             { path: "/api/v1/images/generations", method: "POST" },
             { path: "/proxy", method: "POST" }
@@ -78,21 +72,10 @@ export default {
       }
 
       // 404
-      console.log('❌ No route matched');
       return new Response(JSON.stringify({ 
         error: 'Not Found',
-        path: path,
-        method: method,
-        message: 'Route not found. Make sure to use POST for API endpoints.',
-        available_endpoints: [
-          'GET /',
-          'GET /health',
-          'GET /api/endpoints',
-          'POST /api/generate',
-          'POST /api/v1/images/generations',
-          'POST /proxy'
-        ]
-      }, null, 2), {
+        path: path
+      }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -100,9 +83,7 @@ export default {
     } catch (error) {
       console.error('Worker error:', error);
       return new Response(JSON.stringify({ 
-        error: 'Internal server error',
-        message: error.message,
-        stack: error.stack
+        error: error.message
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -111,9 +92,8 @@ export default {
   }
 };
 
-// 完整 UI（保持之前的代码）
 function getFullUI(origin) {
-  return \`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -137,186 +117,222 @@ function getFullUI(origin) {
       margin: 20px 0;
     }
     h1 { font-size: 42px; margin-bottom: 10px; }
-    .btn-test {
+    textarea {
+      width: 100%;
+      padding: 15px;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      min-height: 120px;
+      margin: 20px 0;
+      font-family: inherit;
+    }
+    button {
+      width: 100%;
+      padding: 18px;
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: white;
       border: none;
-      padding: 15px 30px;
-      border-radius: 10px;
-      font-size: 16px;
+      border-radius: 12px;
+      font-size: 18px;
       font-weight: bold;
       cursor: pointer;
-      margin: 10px 10px 10px 0;
-    }
-    .btn-test:hover { transform: translateY(-2px); }
-    pre {
-      background: rgba(0,0,0,0.3);
-      padding: 15px;
-      border-radius: 10px;
-      overflow-x: auto;
-      margin: 15px 0;
-      font-size: 13px;
-    }
-    .status {
-      padding: 12px;
-      border-radius: 8px;
       margin: 10px 0;
     }
-    .success { background: rgba(16,185,129,0.2); color: #6ee7b7; }
-    .error { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    button:hover { transform: translateY(-2px); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      display: none;
+    }
+    .status.show { display: block; }
+    .loading { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+    .success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .error { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .preview {
+      width: 100%;
+      min-height: 400px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+      padding: 20px;
+    }
+    .preview img { max-width: 100%; border-radius: 10px; }
+    .info {
+      background: rgba(99, 102, 241, 0.1);
+      border-radius: 10px;
+      padding: 15px;
+      margin: 15px 0;
+      display: none;
+      font-size: 14px;
+    }
+    .info.show { display: block; }
+    .toggle { margin: 20px 0; display: flex; align-items: center; gap: 10px; }
+    .toggle input { width: 20px; height: 20px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="card">
       <h1>🎨 Gemini Image Proxy</h1>
-      <p>v2.5.1 - API Gateway Test Page</p>
+      <p>AI 图像生成工具 v2.5.1</p>
       
-      <h2 style="margin-top: 30px;">快速测试</h2>
-      <button class="btn-test" onclick="testHealth()">测试 Health</button>
-      <button class="btn-test" onclick="testGenerate()">测试生成 (Gemini)</button>
-      <button class="btn-test" onclick="testOpenAI()">测试生成 (OpenAI)</button>
+      <textarea id="prompt" placeholder="描述你想生成的图像...">一只可爱的橘猫在香港沙田区的公园里散步，阳光明媚，画风细腻，高清</textarea>
       
-      <div id="result"></div>
+      <div class="toggle">
+        <input type="checkbox" id="openai">
+        <label for="openai">使用 OpenAI 格式</label>
+      </div>
       
-      <h2 style="margin-top: 30px;">API 端点</h2>
-      <pre>POST \${origin}/api/generate
-POST \${origin}/api/v1/images/generations
-POST \${origin}/proxy
-GET  \${origin}/health</pre>
+      <button id="btn" onclick="generate()">🎨 生成图像</button>
       
-      <h2 style="margin-top: 30px;">curl 测试</h2>
-      <pre>curl -X POST \${origin}/api/v1/images/generations \\
-  -H "Content-Type: application/json" \\
-  -d '{"prompt":"cute cat"}' \\
-  -v</pre>
+      <div class="status" id="status"></div>
+      
+      <div class="info" id="info"></div>
+      
+      <div class="preview" id="preview">
+        <span style="color: rgba(255,255,255,0.5)">图像将显示在这里</span>
+      </div>
     </div>
   </div>
 
   <script>
-    const API_BASE = '\${origin}';
+    const API_BASE = '${origin}';
     
-    async function testHealth() {
-      showResult('testing', '正在测试 /health...');
+    async function generate() {
+      const prompt = document.getElementById('prompt').value.trim();
+      const openai = document.getElementById('openai').checked;
+      const status = document.getElementById('status');
+      const preview = document.getElementById('preview');
+      const info = document.getElementById('info');
+      const btn = document.getElementById('btn');
+      
+      if (!prompt) {
+        alert('请输入图像描述');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ 生成中...';
+      status.className = 'status loading show';
+      status.textContent = '正在生成图像...';
+      preview.innerHTML = '<span style="color: rgba(255,255,255,0.5)">生成中...</span>';
+      info.classList.remove('show');
+      
+      const startTime = Date.now();
+      let seconds = 0;
+      const timer = setInterval(() => {
+        seconds++;
+        status.textContent = \`正在生成图像... (\${seconds}s)\`;
+      }, 1000);
+      
       try {
-        const response = await fetch(API_BASE + '/health');
+        const endpoint = openai ? '/api/v1/images/generations' : '/api/generate';
+        
+        const response = await fetch(API_BASE + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: prompt })
+        });
+        
+        clearInterval(timer);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'API 错误');
+        }
+        
         const data = await response.json();
-        showResult('success', 'Health Check 成功:\\n' + JSON.stringify(data, null, 2));
-      } catch (error) {
-        showResult('error', '错误: ' + error.message);
-      }
-    }
-    
-    async function testGenerate() {
-      showResult('testing', '正在测试 /api/generate (Gemini 格式)...');
-      try {
-        const response = await fetch(API_BASE + '/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: 'test image' })
-        });
+        console.log('Response:', data);
         
-        const text = await response.text();
+        let imageData = null;
         
-        if (response.ok) {
-          showResult('success', 'API 响应成功 (' + response.status + '):\\n' + text.substring(0, 500));
+        if (openai) {
+          imageData = data.data?.[0]?.b64_json;
         } else {
-          showResult('error', 'API 错误 (' + response.status + '):\\n' + text);
+          const part = data.candidates?.[0]?.content?.parts?.[0];
+          if (part?.inline_data?.data) {
+            imageData = part.inline_data.data;
+          } else if (part?.text) {
+            const match = part.text.match(/data:(image\\/\\w+);base64,([^)]+)/);
+            if (match) imageData = match[2];
+          }
         }
-      } catch (error) {
-        showResult('error', '请求失败: ' + error.message);
-      }
-    }
-    
-    async function testOpenAI() {
-      showResult('testing', '正在测试 /api/v1/images/generations (OpenAI 格式)...');
-      try {
-        const response = await fetch(API_BASE + '/api/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: 'test image' })
-        });
         
-        const text = await response.text();
-        
-        if (response.ok) {
-          showResult('success', 'API 响应成功 (' + response.status + '):\\n' + text.substring(0, 500));
+        if (imageData) {
+          preview.innerHTML = \`<img src="data:image/png;base64,\${imageData}" alt="Generated">\`;
+          status.className = 'status success show';
+          status.textContent = \`✅ 生成成功！耗时 \${duration} 秒\`;
+          info.innerHTML = \`格式: \${openai ? 'OpenAI' : 'Gemini'} | 耗时: \${duration}s\`;
+          info.classList.add('show');
         } else {
-          showResult('error', 'API 错误 (' + response.status + '):\\n' + text);
+          throw new Error('未找到图像数据');
         }
+        
       } catch (error) {
-        showResult('error', '请求失败: ' + error.message);
+        clearInterval(timer);
+        status.className = 'status error show';
+        status.textContent = '❌ ' + error.message;
+        preview.innerHTML = '<span style="color: #fca5a5">生成失败</span>';
+        console.error('Error:', error);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🎨 生成图像';
       }
     }
     
-    function showResult(type, message) {
-      const result = document.getElementById('result');
-      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
-      result.innerHTML = '<div class="status ' + className + '"><pre>' + message + '</pre></div>';
-    }
-    
-    console.log('✅ Test page loaded');
-    console.log('API Base:', API_BASE);
+    console.log('✅ UI loaded, API:', API_BASE);
   </script>
 </body>
-</html>\`;
+</html>`;
 }
 
-// 提取图像数据
 function extractImageData(data) {
-  const candidate = data.candidates?.[0];
-  if (!candidate) return { imgB64: null, mimeType: 'image/png' };
-  
-  const part = candidate.content?.parts?.[0];
-  if (!part) return { imgB64: null, mimeType: 'image/png' };
+  const part = data.candidates?.[0]?.content?.parts?.[0];
+  if (!part) return null;
   
   if (part.inline_data?.data) {
-    return {
-      imgB64: part.inline_data.data,
-      mimeType: part.inline_data.mimeType || 'image/png'
-    };
+    return { data: part.inline_data.data, mimeType: part.inline_data.mimeType || 'image/png' };
   }
   
   if (part.text) {
     const match = part.text.match(/!\[.*?\]\(data:(image\/[^;]+);base64,([^)]+)\)/);
-    if (match) {
-      return {
-        imgB64: match[2],
-        mimeType: match[1]
-      };
-    }
+    if (match) return { data: match[2], mimeType: match[1] };
   }
   
-  return { imgB64: null, mimeType: 'image/png' };
+  return null;
 }
 
-// 处理生成请求
 async function handleGenerate(request, env, format, corsHeaders) {
   try {
-    console.log('handleGenerate called with format:', format);
+    console.log('handleGenerate:', format);
     
     if (!env.API_KEY || !env.TARGET_URL) {
-      console.error('Missing env vars:', { has_key: !!env.API_KEY, has_url: !!env.TARGET_URL });
       return jsonError('Server configuration error', 500, corsHeaders);
     }
 
     const body = await request.json().catch(() => ({}));
-    console.log('Request body:', body);
     
     if (!body.prompt) {
-      return jsonError('Missing prompt field', 400, corsHeaders);
+      return jsonError('Missing prompt', 400, corsHeaders);
     }
 
     const targetUrl = new URL(env.TARGET_URL);
     targetUrl.searchParams.set('key', env.API_KEY);
 
-    console.log('Calling upstream API...');
+    console.log('Calling upstream...');
 
     const upstreamResp = await fetch(targetUrl.href, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker/2.5.1'
+        'User-Agent': 'CF-Worker/2.5.1'
       },
       body: JSON.stringify({
         contents: [{
@@ -324,8 +340,8 @@ async function handleGenerate(request, env, format, corsHeaders) {
           parts: [{ text: body.prompt }]
         }],
         generationConfig: {
-          response_mime_type: body.response_mime_type || 'image/png',
-          temperature: body.temperature || 0.7
+          response_mime_type: 'image/png',
+          temperature: 0.7
         }
       })
     });
@@ -335,30 +351,29 @@ async function handleGenerate(request, env, format, corsHeaders) {
     if (!upstreamResp.ok) {
       const errorText = await upstreamResp.text();
       console.error('Upstream error:', errorText);
-      return jsonError(\`Upstream error: \${upstreamResp.status}\`, upstreamResp.status, corsHeaders);
+      return jsonError(`Upstream error: ${upstreamResp.status}`, upstreamResp.status, corsHeaders);
     }
 
     let data = await upstreamResp.json();
-    console.log('Got data, format:', format);
 
     if (format === 'openai') {
-      const { imgB64 } = extractImageData(data);
+      const extracted = extractImageData(data);
       
-      if (!imgB64) {
-        console.error('No image data found');
-        return jsonError('No image data in response', 500, corsHeaders);
+      if (!extracted) {
+        console.error('No image data');
+        return jsonError('No image data', 500, corsHeaders);
       }
       
       data = {
         created: Math.floor(Date.now() / 1000),
         data: [{ 
-          b64_json: imgB64,
+          b64_json: extracted.data,
           revised_prompt: body.prompt
         }]
       };
     }
 
-    console.log('Returning success response');
+    console.log('Success');
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
@@ -374,7 +389,6 @@ async function handleGenerate(request, env, format, corsHeaders) {
   }
 }
 
-// 处理代理请求
 async function handleProxy(request, env, corsHeaders) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -393,7 +407,7 @@ async function handleProxy(request, env, corsHeaders) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'User-Agent': 'Cloudflare-Worker-Proxy/2.5.1'
+        'User-Agent': 'CF-Worker-Proxy/2.5.1'
       },
       body: JSON.stringify({
         contents: [{ 
@@ -401,26 +415,25 @@ async function handleProxy(request, env, corsHeaders) {
           parts: [{ text: body.prompt }] 
         }],
         generationConfig: { 
-          response_mime_type: body.response_mime_type || 'image/png',
-          temperature: body.temperature || 0.7
+          response_mime_type: 'image/png',
+          temperature: 0.7
         }
       })
     });
 
     if (!upstreamResp.ok) {
-      const errorText = await upstreamResp.text();
-      return jsonError(\`Upstream error: \${upstreamResp.status}\`, upstreamResp.status, corsHeaders);
+      return jsonError(`Upstream error: ${upstreamResp.status}`, upstreamResp.status, corsHeaders);
     }
 
     let data = await upstreamResp.json();
 
     if (body.openai) {
-      const { imgB64 } = extractImageData(data);
-      if (imgB64) {
+      const extracted = extractImageData(data);
+      if (extracted) {
         data = {
           created: Math.floor(Date.now() / 1000),
           data: [{
-            b64_json: imgB64,
+            b64_json: extracted.data,
             revised_prompt: body.prompt
           }]
         };
@@ -431,8 +444,7 @@ async function handleProxy(request, env, corsHeaders) {
       status: 200,
       headers: {
         ...corsHeaders,
-        'Content-Type': 'application/json',
-        'x-openai-mode': body.openai ? 'enabled' : 'native'
+        'Content-Type': 'application/json'
       }
     });
 
@@ -442,7 +454,6 @@ async function handleProxy(request, env, corsHeaders) {
   }
 }
 
-// 错误响应
 function jsonError(message, status = 500, corsHeaders = {}) {
   return new Response(JSON.stringify({ 
     error: {
